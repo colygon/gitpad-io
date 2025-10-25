@@ -58,6 +58,31 @@ export default function Home() {
     }
   }
 
+  const handleDomainClick = async (domain: string) => {
+    setInput(domain)
+    setMode('domain-to-ideas')
+    setLoading(true)
+    setIdeas([])
+    setDomains([])
+
+    try {
+      const response = await fetch('/api/generate-ideas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain }),
+      })
+
+      const data = await response.json()
+      if (data.ideas) {
+        setIdeas(data.ideas)
+      }
+    } catch (error) {
+      console.error('Generation error:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const saveIdea = (idea: Idea) => {
     if (!savedIdeas.find((i) => i.name === idea.name)) {
       setSavedIdeas([...savedIdeas, idea])
@@ -97,77 +122,9 @@ export default function Home() {
         </motion.div>
 
         {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Sidebar */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="lg:col-span-1 space-y-6"
-          >
-            {/* Saved Domains */}
-            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                🌐 My Domains
-              </h3>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {savedDomains.length === 0 ? (
-                  <p className="text-sm text-purple-200/60">No saved domains yet</p>
-                ) : (
-                  savedDomains.map((domain) => (
-                    <div
-                      key={domain}
-                      className="flex items-center justify-between bg-white/5 rounded-lg p-2 text-sm"
-                    >
-                      <span className="text-purple-100 truncate">{domain}</span>
-                      <button
-                        onClick={() => removeDomain(domain)}
-                        className="text-red-400 hover:text-red-300 transition-colors"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Saved Ideas */}
-            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                💡 My Ideas
-              </h3>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {savedIdeas.length === 0 ? (
-                  <p className="text-sm text-purple-200/60">No saved ideas yet</p>
-                ) : (
-                  savedIdeas.map((idea) => (
-                    <div
-                      key={idea.name}
-                      className="flex items-center justify-between bg-white/5 rounded-lg p-2"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-purple-100 truncate">
-                          {idea.name}
-                        </p>
-                        <p className="text-xs text-purple-200/60 truncate">
-                          {idea.category}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => removeIdea(idea.name)}
-                        className="text-red-400 hover:text-red-300 transition-colors ml-2"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </motion.div>
-
+        <div className="max-w-7xl mx-auto w-full">
           {/* Main Generator */}
-          <div className="lg:col-span-3">
+          <div className="mb-12">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -351,6 +308,40 @@ export default function Home() {
               </AnimatePresence>
             </motion.div>
           </div>
+
+          {/* Domain Grid - Show when no results */}
+          {ideas.length === 0 && domains.length === 0 && !loading && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-12"
+            >
+              <h2 className="text-3xl font-bold text-white mb-6 text-center">
+                🌐 Click any domain to generate ideas
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                {savedDomains.map((domain, index) => (
+                  <motion.button
+                    key={domain}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: index * 0.01 }}
+                    onClick={() => handleDomainClick(domain)}
+                    className="bg-white/5 hover:bg-white/10 backdrop-blur-lg rounded-xl p-4 border border-white/10 hover:border-purple-500/50 transition-all group cursor-pointer"
+                  >
+                    <div className="text-left">
+                      <p className="text-sm font-medium text-purple-100 group-hover:text-white transition-colors break-all">
+                        {domain}
+                      </p>
+                      <p className="text-xs text-purple-300/60 mt-1">
+                        .{domain.split('.').pop()}
+                      </p>
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+            </motion.div>
+          )}
         </div>
       </div>
     </div>
