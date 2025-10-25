@@ -14,10 +14,18 @@ export default function Home() {
   const [domains, setDomains] = useState<DomainSuggestion[]>([])
   const [savedDomains, setSavedDomains] = useState<string[]>([])
   const [savedIdeas, setSavedIdeas] = useState<Idea[]>([])
+  const [pregenerated, setPregenerated] = useState<Record<string, Idea[]>>({})
 
   // Load initial domains on mount
   useEffect(() => {
     setSavedDomains(INITIAL_DOMAINS)
+    // Load pregenerated ideas if available
+    fetch('/pregenerated-ideas.json')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && typeof data === 'object') setPregenerated(data)
+      })
+      .catch(() => {})
   }, [])
 
   const handleGenerate = async () => {
@@ -61,9 +69,16 @@ export default function Home() {
   const handleDomainClick = async (domain: string) => {
     setInput(domain)
     setMode('domain-to-ideas')
-    setLoading(true)
     setIdeas([])
     setDomains([])
+
+    // If pregenerated exists, show instantly
+    if (pregenerated && pregenerated[domain] && pregenerated[domain].length > 0) {
+      setIdeas(pregenerated[domain])
+      return
+    }
+
+    setLoading(true)
 
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' })

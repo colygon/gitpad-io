@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import Anthropic from '@anthropic-ai/sdk'
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,20 +9,43 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
     }
 
-    const apiKey = process.env.OPENAI_API_KEY
+    const claudeKey = process.env.CLAUDE_API_KEY
+    const openaiKey = process.env.OPENAI_API_KEY
 
-    if (!apiKey) {
+    if (!claudeKey && !openaiKey) {
       return NextResponse.json(
-        { error: 'OpenAI API key not configured' },
+        { error: 'No AI API key configured' },
         { status: 500 }
       )
     }
 
+    // Prefer Claude if available
+    if (claudeKey) {
+      const anthropic = new Anthropic({ apiKey: claudeKey })
+      const message = await anthropic.messages.create({
+        model: 'claude-3-5-sonnet-latest',
+        max_tokens: 2000,
+        messages: [
+          {
+            role: 'user',
+            content: `Generate 10 unique startup ideas for the domain "${domain}". Each idea should have:\n- name\n- tagline\n- description (2-3 sentences)\n- category\n- keywords (3-5)\nReturn only a JSON array (no markdown). Start with [ and end with ].`,
+          },
+        ],
+      })
+
+      const content = message.content[0]?.type === 'text' ? message.content[0].text : ''
+      if (!content) throw new Error('Empty response from Claude')
+      const clean = content.replace(/```json\n?|```\n?/g, '').trim()
+      const ideas = JSON.parse(clean)
+      return NextResponse.json({ ideas })
+    }
+
+    // Fallback to OpenAI if Claude not configured
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${openaiKey}`,
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
@@ -33,14 +57,7 @@ export async function POST(request: NextRequest) {
           },
           {
             role: 'user',
-            content: `Generate 10 unique startup ideas for the domain "${domain}". Each idea should have:
-- name: catchy product name
-- tagline: one-line description
-- description: 2-3 sentence explanation
-- category: (e.g., "AI Tools", "SaaS", "Developer Tools", "Social", "Finance", etc.)
-- keywords: array of 3-5 relevant tags
-
-Return as a JSON array of objects. ONLY return the JSON array, no other text or markdown formatting.`,
+            content: `Generate 10 unique startup ideas for the domain "${domain}". Each idea should have:\n- name\n- tagline\n- description (2-3 sentences)\n- category\n- keywords (3-5)\nReturn only a JSON array (no markdown).`,
           },
         ],
         temperature: 0.8,
@@ -58,9 +75,7 @@ Return as a JSON array of objects. ONLY return the JSON array, no other text or 
       throw new Error('No content in response')
     }
 
-    // Parse the JSON response
     const ideas = JSON.parse(content)
-
     return NextResponse.json({ ideas })
   } catch (error) {
     console.error('Error generating ideas:', error)
