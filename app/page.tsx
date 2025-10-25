@@ -65,6 +65,9 @@ export default function Home() {
     setIdeas([])
     setDomains([])
 
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+
     try {
       const response = await fetch('/api/generate-ideas', {
         method: 'POST',
@@ -72,12 +75,24 @@ export default function Home() {
         body: JSON.stringify({ domain }),
       })
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
       const data = await response.json()
+      
+      if (data.error) {
+        console.error('API error:', data.error)
+        alert(`Error: ${data.error}`)
+        return
+      }
+      
       if (data.ideas) {
         setIdeas(data.ideas)
       }
     } catch (error) {
       console.error('Generation error:', error)
+      alert('Failed to generate ideas. Please check if your OpenAI API key is configured.')
     } finally {
       setLoading(false)
     }
@@ -323,10 +338,14 @@ export default function Home() {
                 {savedDomains.map((domain, index) => (
                   <motion.button
                     key={domain}
+                    type="button"
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: index * 0.01 }}
-                    onClick={() => handleDomainClick(domain)}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      handleDomainClick(domain)
+                    }}
                     className="bg-white/5 hover:bg-white/10 backdrop-blur-lg rounded-xl p-4 border border-white/10 hover:border-purple-500/50 transition-all group cursor-pointer"
                   >
                     <div className="text-left">
