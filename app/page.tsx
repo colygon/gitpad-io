@@ -15,6 +15,8 @@ export default function Home() {
   const [savedDomains, setSavedDomains] = useState<string[]>([])
   const [savedIdeas, setSavedIdeas] = useState<Idea[]>([])
   const [pregenerated, setPregenerated] = useState<Record<string, Idea[]>>({})
+  const [allIdeas, setAllIdeas] = useState<{ idea: Idea; domain: string }[]>([])
+  const [ideasLimit, setIdeasLimit] = useState(200)
 
   // Load initial domains on mount
   useEffect(() => {
@@ -23,7 +25,17 @@ export default function Home() {
     fetch('/pregenerated-ideas.json')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data && typeof data === 'object') setPregenerated(data)
+        if (data && typeof data === 'object') {
+          setPregenerated(data)
+          // Flatten into a single list for Idea → Domains mode
+          const list: { idea: Idea; domain: string }[] = []
+          Object.entries(data as Record<string, Idea[]>).forEach(([domain, ideas]) => {
+            if (Array.isArray(ideas)) {
+              ideas.forEach((idea: Idea) => list.push({ idea, domain }))
+            }
+          })
+          setAllIdeas(list)
+        }
       })
       .catch(() => {})
   }, [])
@@ -61,6 +73,35 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Generation error:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleIdeaClick = async (idea: Idea) => {
+    setMode('idea-to-domains')
+    setDomains([])
+    setIdeas([])
+    const ideaPrompt = `${idea.name}: ${idea.tagline}. ${idea.description} Category: ${idea.category}. Keywords: ${idea.keywords.join(', ')}`
+    setInput(ideaPrompt)
+    setLoading(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    try {
+      const response = await fetch('/api/generate-domains', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idea: ideaPrompt }),
+      })
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      const data = await response.json()
+      if (data.error) {
+        alert(`Error: ${data.error}`)
+        return
+      }
+      if (data.domains) setDomains(data.domains)
+    } catch (err) {
+      console.error(err)
+      alert('Failed to generate domains for this idea.')
     } finally {
       setLoading(false)
     }
@@ -339,8 +380,8 @@ export default function Home() {
             </motion.div>
           </div>
 
-          {/* Domain Grid - Show when no results */}
-          {ideas.length === 0 && domains.length === 0 && !loading && (
+          {/* Domain Grid - Show when in Domain → Ideas and no results */}
+          {mode === 'domain-to-ideas' && ideas.length === 0 && domains.length === 0 && !loading && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -374,6 +415,55 @@ export default function Home() {
                   </motion.button>
                 ))}
               </div>
+            </motion.div>
+          )}
+
+          {/* Idea Grid - Show when in Idea → Domains and no domains yet */}
+          {mode === 'idea-to-domains' && domains.length === 0 && !loading && allIdeas.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-12"
+            >
+              <h2 className="text-3xl font-bold text-white mb-2 text-center">💡 All Ideas</h2>
+              <p className="text-center text-purple-200 mb-6">Click an idea to generate domain names</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {allIdeas.slice(0, ideasLimit).map(({ idea, domain }, index) => (
+                  <motion.button
+                    key={`${idea.name}-${index}`}
+                    type="button"
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: index * 0.005 }}
+                    onClick={(e) => { e.preventDefault(); handleIdeaClick(idea) }}
+                    className="text-left bg-white/5 hover:bg-white/10 border border-white/10 hover:border-purple-500/50 rounded-xl p-4 transition-all"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-white font-semibold truncate pr-2">{idea.name}</h3>
+                      <span className="px-2 py-0.5 rounded text-xs bg-purple-600/30 text-purple-100">{idea.category}</span>
+                    </div>
+                    <p className="text-purple-200 text-sm line-clamp-3 mb-2">{idea.tagline}</p>
+                    <p className="text-purple-100/80 text-sm line-clamp-4 mb-3">{idea.description}</p>
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      {idea.keywords.map((k) => (
+                        <span key={k} className="text-[10px] px-2 py-0.5 rounded bg-white/10 text-purple-200">{k}</span>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-purple-300/70">from {domain}</p>
+                  </motion.button>
+                ))}
+              </div>
+              {allIdeas.length > ideasLimit && (
+                <div className="flex justify-center mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setIdeasLimit((n) => n + 200)}
+                    className="px-4 py-2 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
+                  >
+                    Load more
+                  </button>
+                </div>
+              )}
             </motion.div>
           )}
         </div>

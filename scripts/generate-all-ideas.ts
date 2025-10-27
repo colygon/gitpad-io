@@ -1,7 +1,16 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import Anthropic from '@anthropic-ai/sdk'
-import 'dotenv/config'
+import dotenv from 'dotenv'
+
+// Load environment from .env.local if present, otherwise .env
+const localEnv = path.join(process.cwd(), '.env.local')
+const defaultEnv = path.join(process.cwd(), '.env')
+if (fs.existsSync(localEnv)) {
+  dotenv.config({ path: localEnv })
+} else if (fs.existsSync(defaultEnv)) {
+  dotenv.config({ path: defaultEnv })
+}
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY || ''
 const anthropic = new Anthropic({ apiKey: CLAUDE_API_KEY })
